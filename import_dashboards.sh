@@ -1,49 +1,45 @@
+#!/bin/bash
 
-function import_single_dashboard {
-   SERVER=$1
-   PASS=$2
-   DASH=$3
+# Terminal Colors
+red=$'\e[1;31m'
+grn=$'\e[1;32m'
+yel=$'\e[1;33m'
+blu=$'\e[1;34m'
+mag=$'\e[1;35m'
+cyn=$'\e[1;36m'
+end=$'\e[0m'
+coffee=$'\xE2\x98\x95'
+coffee3="${coffee} ${coffee} ${coffee}"
+URL=$1
+PASSWORD=$2
 
-   if [ -z "$4" ]; 
-   then
-      REV=1
-   else
-      REV=$4
-   fi
- 
-   curl -s https://grafana.com/api/dashboards/$DASH/revisions/$REV/download -o raw_$DASH.json
-   TITLE=$(cat raw_$DASH.json | jq -r .title)
-   echo Importing dashboard $DASH, called $TITLE 
-   DS=$(cat raw_$DASH.json | jq -r .__inputs[0].name)
-   #echo sed "s/\${$DS}/\${Prometheus}/"  raw_$DASH.json 
-   sed "s/\${$DS}/\${Prometheus}/"  raw_$DASH.json > dash_$DASH.json
-   sed 's/${Prometheus}/Prometheus/' -i dash_$DASH.json
-   #grep Prom dash_$DASH.json
-   sed -i '1i{ "dashboard": ' dash_$DASH.json
-   echo   , \"overwrite\": true} >> dash_$DASH.json
-   curl -s -u admin:$PASS -H "Content-Type: application/json" -X POST http://$SERVER/api/dashboards/db -d @dash_$DASH.json
-   echo
+function print_usage {
+        printf "\n\n${yel}Usage:${end}\n"
+        printf "\t${cyn}./install_bluecompute_ce.sh <grafana-url> <grafana-admin-password>${end}\n\n"
 }
 
 
-if [ -z "$1" ]; 
-then
-	echo "No Grafana server name or IP passed to script"
-	exit 1 
+if [[ -z "${URL// }" ]]; then
+		print_usage
+		echo "${red}Please provide Grafana URL. Exiting..${end}"
+		exit 1
+
+elif [[ -z "${PASSWORD// }" ]]; then
+		print_usage
+		echo "${red}Please provide Grafana admin user password. Exiting..${end}"
+		exit 1
 fi
-if [ -z "$2" ];
-then
-        echo "No Grafana password passed to script"
-        exit 1
-fi
-
-#                       IP Password   Dash  Revision
-
-import_single_dashboard $1 $2         159    1 
-import_single_dashboard $1 $2           2    2 
-import_single_dashboard $1 $2         741    1 
-import_single_dashboard $1 $2         315    2 
-import_single_dashboard $1 $2        1471    1 
 
 
+FILES=docs/dashboards/*.json
+for f in $FILES
+do
+  printf "\nProcessing $f : "
+  curl -s -u admin:$PASSWORD -H "Content-Type: application/json" -X POST $URL/api/dashboards/db -d@$f
+done
 
+
+printf "\n\nYou can now access a variety of dashboards to show monitoring data on the Kubernetes cluster."
+printf "\n\t${URL}/dashboard/db/prometheus-system-from-159?refresh=30s is a good default dashboard"
+printf "\n\t${URL}/dashboard/db/prometheus-data-exploration?refresh=5s allows to you explore all the available metrics"
+printf "\n"
